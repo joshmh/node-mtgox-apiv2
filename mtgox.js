@@ -1,7 +1,6 @@
-var querystring = require("querystring"),
-  crypto = require("crypto"),
-  request = require("request"),
-  JSONStream = require("JSONStream");
+var querystring = require("querystring");
+var crypto = require("crypto");
+var https = require('https');
 
 function MtGoxClient(key, secret, currency) {
   var self = this;
@@ -40,25 +39,45 @@ function MtGoxClient(key, secret, currency) {
     options.headers["Rest-Sign"] = hmac.digest("base64");
     options.headers["Content-Length"] = postData.length;
 
+
+var options = {
+  hostname: 'encrypted.google.com',
+  port: 443,
+  path: '/',
+  method: 'GET'
+};
+
     return executeRequest(options, callback);
   }
 
   function executeRequest(options, callback) {
-    if (typeof callback == "function") {
-      request(options, function (err, res, body) {
-        if (res && res.statusCode == 200) {
-          callback(null, JSON.parse(body));
-        } else if(res){
-          callback(new Error("Request failed with " + res.statusCode));
-        } else {
-          callback(new Error("Request failed"));
-        }
+    var req = https.request(options, function(res) {
+      if (res.statusCode != 200) {
+        callback(new Error("Request failed with " + res.statusCode));
+      }
+
+      res.on('data', function(d) {
+        console.log(d);
+        callback(null, JSON.parse(d));
       });
-    } else {
-      var parser = JSONStream.parse(["data", true]);
-      request.get(options).pipe(parser);
-      return parser;
-    }
+    });
+    req.end();
+
+    req.on('error', function(e) {
+      console.error(e);
+    });
+
+
+
+    request(options, function (err, res, body) {
+      if (res && res.statusCode == 200) {
+        callback(null, JSON.parse(body));
+      } else if(res){
+        callback(new Error("Request failed with " + res.statusCode));
+      } else {
+        callback(new Error("Request failed"));
+      }
+    });
   }
 
   function basicOptions(path) {
